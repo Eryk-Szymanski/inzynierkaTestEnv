@@ -1,6 +1,7 @@
 from fastapi import status, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 ''' Relatywne importy
@@ -54,9 +55,10 @@ def get_db():
 #
 ''' Domyślna
 '''
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+# Pobranie schematu sklepu
+@app.get("/", response_class=FileResponse)
+async def read_root():
+    return "./app/images/storemap.jpg"
 
 
 ''' Autentyfikacja
@@ -105,7 +107,7 @@ async def read_users_me(current_user: schemas.User = Depends(get_current_active_
 '''
 # Utworzenie
 @app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -113,14 +115,64 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 # Pobranie wszystkich
 @app.get("/users/", response_model=list[schemas.User])
-def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
+async def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
     users = crud.get_users(db, skip=skip, limit=limit)
     return users
 
 # Pobranie po id
 @app.get("/users/{user_id}", response_model=schemas.User)
-def read_user(user_id: int, db: Session = Depends(get_db)):
+async def read_user(user_id: int, db: Session = Depends(get_db)):
     db_user = crud.get_user(db, user_id=user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
+
+
+''' Związane ze sklepami
+'''
+# Utworzenie
+@app.post("/stores/", response_model=schemas.Store)
+async def create_store(store: schemas.StoreCreate, db: Session = Depends(get_db)):
+    db_store = crud.get_store_by_address(db, address=store.address)
+    if db_store:
+        raise HTTPException(status_code=400, detail="Sklep z tym samym adresem już istnieje")
+    return crud.create_store(db=db, store=store)
+
+# Pobranie wszystkich
+@app.get("/stores/", response_model=list[schemas.Store])
+async def read_stores(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
+    stores = crud.get_stores(db, skip=skip, limit=limit)
+    return stores
+
+# Pobranie po id
+@app.get("/stores/{store_id}", response_model=schemas.Store)
+async def read_store(store_id: int, db: Session = Depends(get_db)):
+    db_store = crud.get_store(db, store_id=store_id)
+    if db_store is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return db_store
+
+
+''' Związane ze schematami
+'''
+# Utworzenie
+@app.post("/store_schemas/", response_model=schemas.StoreSchema)
+async def create_store_schema(store_schema: schemas.StoreSchemaCreate, db: Session = Depends(get_db)):
+    db_store_schema = crud.get_store_schema_by_store_id(db, store_id=store_schema.store_id)
+    if db_store_schema:
+        raise HTTPException(status_code=400, detail="Schemat sklepu związany z tym sklepem już istnieje")
+    return crud.create_store_schema(db=db, store_schema=store_schema)
+
+# Pobranie wszystkich
+@app.get("/store_schemas/", response_model=list[schemas.StoreSchema])
+async def read_store_schemas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
+    store_schemas = crud.get_store_schemas(db, skip=skip, limit=limit)
+    return store_schemas
+
+# Pobranie po id
+@app.get("/store_schemas/{store_schema_id}", response_model=schemas.StoreSchema)
+async def read_store_schema(store_schema_id: int, db: Session = Depends(get_db)):
+    db_store_schema = crud.get_store_schema(db, store_schema_id=store_schema_id)
+    if db_store_schema is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return db_store_schema
